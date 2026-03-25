@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Primelight Health Services</title>
+    <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <link href="assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .admin-header { background: linear-gradient(135deg, #007bff, #0056b3); color: white; padding: 2rem 0; }
+        .form-card { margin-bottom: 2rem; }
+        .submission-card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+        .attachment-link { color: #007bff; text-decoration: none; }
+        .attachment-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <header class="admin-header">
+        <div class="container">
+            <h1>Admin Panel</h1>
+            <p>Manage form submissions and site content</p>
+        </div>
+    </header>
+
+    <div class="container mt-4">
+        <!-- Password Protection -->
+        <div class="card form-card" id="authCard">
+            <div class="card-header">
+                <h5>Admin Access</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="adminPassword" class="form-label">Admin Password</label>
+                    <input type="password" class="form-control" id="adminPassword" placeholder="Enter admin password">
+                </div>
+                <button class="btn btn-primary" onclick="authenticate()">Access Admin Panel</button>
+            </div>
+        </div>
+
+        <!-- Main Admin Content -->
+        <div id="adminContent" style="display: none;">
+        <div class="card form-card">
+            <div class="card-header">
+                <h5>Netlify API Configuration</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <label for="siteId" class="form-label">Site ID</label>
+                        <input type="text" class="form-control" id="siteId" value="e62d3e9d-1f74-46e8-82d6-50a6c26f6f30" readonly>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="apiToken" class="form-label">API Token</label>
+                        <input type="password" class="form-control" id="apiToken" placeholder="Enter your Netlify API Token">
+                    </div>
+                </div>
+                <button class="btn btn-primary mt-3" onclick="loadForms()">Load Forms</button>
+            </div>
+        </div>
+
+        <!-- Forms List -->
+        <div class="card form-card" id="formsCard" style="display: none;">
+            <div class="card-header">
+                <h5>Forms</h5>
+            </div>
+            <div class="card-body">
+                <div id="formsList"></div>
+            </div>
+        </div>
+
+        <!-- Submissions -->
+        <div class="card form-card" id="submissionsCard" style="display: none;">
+            <div class="card-header">
+                <h5>Form Submissions</h5>
+            </div>
+            <div class="card-body">
+                <div id="submissionsList"></div>
+            </div>
+        </div>
+
+        <!-- Content Editor -->
+        <div class="card form-card">
+            <div class="card-header">
+                <h5>Edit Site Content</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Note:</strong> Changes here are for demonstration only. To make permanent changes, edit the HTML files directly.</p>
+                <div class="mb-3">
+                    <label for="welcomeText" class="form-label">Welcome Text</label>
+                    <textarea class="form-control" id="welcomeText" rows="4">Your journey to better health starts here. Whether you're looking for physical, occupational, or speech therapy, we're here to help you achieve your goals. Contact us today to schedule your appointment!
+
+Say goodbye to painful joints that limits your day to day activities!</textarea>
+                </div>
+                <button class="btn btn-secondary" onclick="saveContent()">Save Content (Local)</button>
+                <div id="saveStatus" class="mt-2"></div>
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <script>
+        function authenticate() {
+            const password = document.getElementById('adminPassword').value;
+            if (password === 'primelight2024') {  // Change this password as needed
+                document.getElementById('authCard').style.display = 'none';
+                document.getElementById('adminContent').style.display = 'block';
+            } else {
+                alert('Incorrect password');
+            }
+        }
+
+        let forms = [];
+        let siteId = '';
+        let apiToken = '';
+
+        function loadForms() {
+            siteId = document.getElementById('siteId').value.trim();
+            apiToken = document.getElementById('apiToken').value.trim();
+
+            if (!apiToken) {
+                alert('Please enter API Token');
+                return;
+            }
+
+            // Save token for convenience (not secure)
+            localStorage.setItem('netlifyToken', apiToken);
+
+            fetch(`https://api.netlify.com/api/v1/sites/${siteId}/forms`, {
+                headers: {
+                    'Authorization': `Bearer ${apiToken}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                forms = data;
+                displayForms();
+                document.getElementById('formsCard').style.display = 'block';
+            })
+            .catch(error => {
+                console.error('Error loading forms:', error);
+                alert('Error loading forms. Check your credentials.');
+            });
+        }
+
+        function displayForms() {
+            const formsList = document.getElementById('formsList');
+            formsList.innerHTML = '';
+
+            forms.forEach(form => {
+                const formDiv = document.createElement('div');
+                formDiv.className = 'mb-3';
+                formDiv.innerHTML = `
+                    <h6>${form.name}</h6>
+                    <p>${form.submissions} submissions</p>
+                    <button class="btn btn-sm btn-outline-primary" onclick="loadSubmissions('${form.id}')">View Submissions</button>
+                `;
+                formsList.appendChild(formDiv);
+            });
+        }
+
+        function loadSubmissions(formId) {
+            fetch(`https://api.netlify.com/api/v1/sites/${siteId}/forms/${formId}/submissions`, {
+                headers: {
+                    'Authorization': `Bearer ${apiToken}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                displaySubmissions(data);
+                document.getElementById('submissionsCard').style.display = 'block';
+            })
+            .catch(error => {
+                console.error('Error loading submissions:', error);
+                alert('Error loading submissions.');
+            });
+        }
+
+        function displaySubmissions(submissions) {
+            const submissionsList = document.getElementById('submissionsList');
+            submissionsList.innerHTML = '';
+
+            submissions.forEach(submission => {
+                const submissionDiv = document.createElement('div');
+                submissionDiv.className = 'submission-card';
+
+                let content = `<h6>Submission ID: ${submission.id}</h6>`;
+                content += `<p><strong>Created:</strong> ${new Date(submission.created_at).toLocaleString()}</p>`;
+
+                for (const [key, value] of Object.entries(submission.data)) {
+                    if (key.includes('file') || key.includes('attachment')) {
+                        content += `<p><strong>${key}:</strong> <a href="${value}" class="attachment-link" target="_blank">Download</a></p>`;
+                    } else {
+                        content += `<p><strong>${key}:</strong> ${value}</p>`;
+                    }
+                }
+
+                submissionDiv.innerHTML = content;
+                submissionsList.appendChild(submissionDiv);
+            });
+        }
+
+        function saveContent() {
+            const welcomeText = document.getElementById('welcomeText').value;
+            localStorage.setItem('welcomeText', welcomeText);
+            document.getElementById('saveStatus').innerHTML = '<div class="alert alert-success">Content saved locally!</div>';
+            setTimeout(() => {
+                document.getElementById('saveStatus').innerHTML = '';
+            }, 3000);
+        }
+
+        // Load saved content on page load
+        window.onload = function() {
+            const savedToken = localStorage.getItem('netlifyToken');
+            if (savedToken) {
+                document.getElementById('apiToken').value = savedToken;
+            }
+            const savedText = localStorage.getItem('welcomeText');
+            if (savedText) {
+                document.getElementById('welcomeText').value = savedText;
+            }
+        };
+    </script>
+
+    <script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
