@@ -188,8 +188,16 @@ Say goodbye to painful joints that limits your day to day activities!</textarea>
                 content += `<p><strong>Created:</strong> ${new Date(submission.created_at).toLocaleString()}</p>`;
 
                 for (const [key, value] of Object.entries(submission.data)) {
-                    if (key.includes('file') || key.includes('attachment')) {
-                        content += `<p><strong>${key}:</strong> <a href="${value}" class="attachment-link" target="_blank">Download</a></p>`;
+                    if (value && typeof value === 'object') {
+                        const fileUrl = value.url || value.file || null;
+                        const fileName = value.filename || value.name || key;
+                        if (fileUrl) {
+                            content += `<p><strong>${key}:</strong> <a href="${fileUrl}" class="attachment-link" target="_blank" rel="noopener">Download ${fileName}</a></p>`;
+                        } else {
+                            content += `<p><strong>${key}:</strong> ${JSON.stringify(value)}</p>`;
+                        }
+                    } else if (typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://'))) {
+                        content += `<p><strong>${key}:</strong> <a href="${value}" class="attachment-link" target="_blank" rel="noopener">Download</a></p>`;
                     } else {
                         content += `<p><strong>${key}:</strong> ${value}</p>`;
                     }
