@@ -79,6 +79,17 @@
             </div>
         </div>
 
+        <!-- Current Site Content -->
+        <div class="card form-card">
+            <div class="card-header">
+                <h5>Current Site Content</h5>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-info mb-3" onclick="loadCurrentContent()">Load Current Content</button>
+                <div id="currentContent"></div>
+            </div>
+        </div>
+
         <!-- Content Editor -->
         <div class="card form-card">
             <div class="card-header">
@@ -87,10 +98,16 @@
             <div class="card-body">
                 <p><strong>Note:</strong> Edit text here and then choose <em>Save to Netlify</em> to publish via a deploy call.</p>
                 <div class="mb-3">
-                    <label for="welcomeText" class="form-label">Welcome Text</label>
-                    <textarea class="form-control" id="welcomeText" rows="4">Your journey to better health starts here. Whether you're looking for physical, occupational, or speech therapy, we're here to help you achieve your goals. Contact us today to schedule your appointment!
-
-Say goodbye to painful joints that limits your day to day activities!</textarea>
+                    <label for="heroTitle" class="form-label">Hero Title</label>
+                    <input type="text" class="form-control" id="heroTitle" value="WELCOME TO Primelight Health Services">
+                </div>
+                <div class="mb-3">
+                    <label for="heroText1" class="form-label">Hero Text 1</label>
+                    <textarea class="form-control" id="heroText1" rows="3">Your journey to better health starts here. Whether you're looking for physical, occupational, or speech therapy, we're here to help you achieve your goals. Contact us today to schedule your appointment!</textarea>
+                </div>
+                <div class="mb-3">
+                    <label for="heroText2" class="form-label">Hero Text 2</label>
+                    <textarea class="form-control" id="heroText2" rows="2">Say goodbye to painful joints that limits your day to day activities!</textarea>
                 </div>
                 <button class="btn btn-secondary" onclick="saveContent()">Save Content (Local)</button>
                 <button class="btn btn-success ms-2" onclick="saveContentToNetlify()">Save to Netlify (Deploy)</button>
@@ -104,6 +121,7 @@ Say goodbye to painful joints that limits your day to day activities!</textarea>
                 <h5>Upload Image to Netlify Blob Storage</h5>
             </div>
             <div class="card-body">
+                <div id="selectedImagePath" class="mb-2 text-muted"></div>
                 <div class="mb-3">
                     <label for="imageFile" class="form-label">Choose Image</label>
                     <input type="file" class="form-control" id="imageFile" accept="image/*">
@@ -226,12 +244,74 @@ Say goodbye to painful joints that limits your day to day activities!</textarea>
         }
 
         function saveContent() {
-            const welcomeText = document.getElementById('welcomeText').value;
-            localStorage.setItem('welcomeText', welcomeText);
+            const content = {
+                heroTitle: document.getElementById('heroTitle').value,
+                heroText1: document.getElementById('heroText1').value,
+                heroText2: document.getElementById('heroText2').value
+            };
+            localStorage.setItem('siteContent', JSON.stringify(content));
             document.getElementById('saveStatus').innerHTML = '<div class="alert alert-success">Content saved locally!</div>';
             setTimeout(() => {
                 document.getElementById('saveStatus').innerHTML = '';
             }, 3000);
+        }
+
+        async function loadCurrentContent() {
+            const contentDiv = document.getElementById('currentContent');
+            contentDiv.innerHTML = '<p>Loading...</p>';
+
+            try {
+                // Load current text content
+                const res = await fetch('/site-content.json?cachebust=' + Date.now(), { cache: 'no-store' });
+                let content = {
+                    heroTitle: 'WELCOME TO Primelight Health Services',
+                    heroText1: 'Your journey to better health starts here. Whether you\'re looking for physical, occupational, or speech therapy, we\'re here to help you achieve your goals. Contact us today to schedule your appointment!',
+                    heroText2: 'Say goodbye to painful joints that limits your day to day activities!'
+                };
+                if (res.ok) {
+                    content = Object.assign(content, await res.json());
+                }
+
+                // List of known images (you can expand this)
+                const images = [
+                    'assets/img/hero-bg.jpg',
+                    'assets/img/favicon.png',
+                    'assets/img/apple-touch-icon.png',
+                    'assets/img/logo.png',
+                    'assets/img/about.jpg',
+                    'assets/img/gallery/gallery-1.jpg',
+                    'assets/img/gallery/gallery-2.jpg',
+                    'assets/img/gallery/gallery-3.jpg',
+                    'assets/img/gallery/gallery-4.jpg',
+                    'assets/img/gallery/gallery-5.jpg',
+                    'assets/img/gallery/gallery-6.jpg',
+                    'assets/img/gallery/gallery-7.jpg',
+                    'assets/img/gallery/gallery-8.jpg'
+                ];
+
+                let html = '<h6>Current Text Content:</h6>';
+                html += `<p><strong>Hero Title:</strong> ${content.heroTitle}</p>`;
+                html += `<p><strong>Hero Text 1:</strong> ${content.heroText1}</p>`;
+                html += `<p><strong>Hero Text 2:</strong> ${content.heroText2}</p>`;
+
+                html += '<h6 class="mt-3">Current Images:</h6>';
+                images.forEach(img => {
+                    html += `<div class="mb-2">
+                        <img src="${img}" alt="${img}" style="max-width: 100px; max-height: 100px;" class="me-2">
+                        <strong>${img}</strong>
+                        <button class="btn btn-sm btn-outline-primary ms-2" onclick="selectImage('${img}')">Select to Replace</button>
+                    </div>`;
+                });
+
+                contentDiv.innerHTML = html;
+            } catch (error) {
+                contentDiv.innerHTML = '<div class="alert alert-danger">Error loading content: ' + error.message + '</div>';
+            }
+        }
+
+        function selectImage(imgPath) {
+            document.getElementById('selectedImagePath').textContent = 'Replacing: ' + imgPath;
+            // You can upload a new image to replace this one
         }
 
         async function saveContentToNetlify() {
@@ -243,9 +323,9 @@ Say goodbye to painful joints that limits your day to day activities!</textarea>
             }
 
             const content = {
-                heroTitle: document.getElementById('heroTitle') ? document.getElementById('heroTitle').value : 'WELCOME TO Primelight Health Services',
-                heroText1: document.getElementById('welcomeText').value,
-                heroText2: ''
+                heroTitle: document.getElementById('heroTitle').value,
+                heroText1: document.getElementById('heroText1').value,
+                heroText2: document.getElementById('heroText2').value
             };
 
             const body = JSON.stringify(content, null, 2);
@@ -266,8 +346,8 @@ Say goodbye to painful joints that limits your day to day activities!</textarea>
                     return;
                 }
 
-                // fallback to deploy API
-                const hashBuffer = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(body));
+                // fallback to deploy API with forced update
+                const hashBuffer = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(body + Date.now()));
                 const hash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 
                 const deployRes = await fetch(`https://api.netlify.com/api/v1/sites/${siteId}/deploys`, {
@@ -284,15 +364,9 @@ Say goodbye to painful joints that limits your day to day activities!</textarea>
                 }
 
                 const deployJson = await deployRes.json();
-                if (!deployJson.required || !deployJson.required.includes('site-content.json')) {
-                    document.getElementById('saveStatus').innerHTML = '<div class="alert alert-warning">Deploy created but no upload needed. Try refreshing the site.</div>';
-                    return;
-                }
-
-                // Upload required file(s)
                 const uploadUrl = deployJson.files && deployJson.files['site-content.json'];
                 if (!uploadUrl) {
-                    throw new Error('Upload URL not provided in deploy response.');
+                    throw new Error('Upload URL not provided. File may not need updating.');
                 }
 
                 const putRes = await fetch(uploadUrl, {
@@ -327,7 +401,7 @@ Say goodbye to painful joints that limits your day to day activities!</textarea>
             }
 
             const file = fileInput.files[0];
-            const uploadUrl = `https://api.netlify.com/api/v1/blob`; // Netlify Blob API
+            const uploadUrl = `https://api.netlify.com/api/v1/blobs?site_id=${siteId}`;
 
             try {
                 const res = await fetch(uploadUrl, {
@@ -344,7 +418,7 @@ Say goodbye to painful joints that limits your day to day activities!</textarea>
                 }
 
                 const blobData = await res.json();
-                const url = blobData.url || blobData.file_url || blobData.path;
+                const url = blobData.url;
                 document.getElementById('uploadStatus').innerHTML = '<div class="alert alert-success">Upload successful.</div>';
                 document.getElementById('uploadedBlobUrl').innerHTML = `<p>Blob URL: <a href="${url}" target="_blank" rel="noopener">${url}</a></p>`;
             } catch (err) {
@@ -359,9 +433,12 @@ Say goodbye to painful joints that limits your day to day activities!</textarea>
             if (savedToken) {
                 document.getElementById('apiToken').value = savedToken;
             }
-            const savedText = localStorage.getItem('welcomeText');
-            if (savedText) {
-                document.getElementById('welcomeText').value = savedText;
+            const savedContent = localStorage.getItem('siteContent');
+            if (savedContent) {
+                const content = JSON.parse(savedContent);
+                document.getElementById('heroTitle').value = content.heroTitle || '';
+                document.getElementById('heroText1').value = content.heroText1 || '';
+                document.getElementById('heroText2').value = content.heroText2 || '';
             }
         };
     </script>
