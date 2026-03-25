@@ -96,7 +96,7 @@
                 <h5>Edit Site Content</h5>
             </div>
             <div class="card-body">
-                <p><strong>Note:</strong> Edit text here and then choose <em>Save to Netlify</em> to publish via a deploy call.</p>
+                <p><strong>Note:</strong> Edit text here and then choose <em>Save to Netlify</em> to publish via a deploy call. If the file doesn't exist in your repo, create <code>site-content.json</code> with <code>{}</code> first.</p>
                 <div class="mb-3">
                     <label for="heroTitle" class="form-label">Hero Title</label>
                     <input type="text" class="form-control" id="heroTitle" value="WELCOME TO Primelight Health Services">
@@ -121,6 +121,7 @@
                 <h5>Upload Image to Netlify Blob Storage</h5>
             </div>
             <div class="card-body">
+                <p><strong>Note:</strong> Blob storage may not be enabled for your site. If upload fails, upload images manually to your repo's <code>assets/img/</code> folder.</p>
                 <div id="selectedImagePath" class="mb-2 text-muted"></div>
                 <div class="mb-3">
                     <label for="imageFile" class="form-label">Choose Image</label>
@@ -366,7 +367,8 @@
                 const deployJson = await deployRes.json();
                 const uploadUrl = deployJson.files && deployJson.files['site-content.json'];
                 if (!uploadUrl) {
-                    throw new Error('Upload URL not provided. File may not need updating.');
+                    document.getElementById('saveStatus').innerHTML = '<div class="alert alert-warning">No upload needed (file unchanged) or create <code>site-content.json</code> in your repo first. Try refreshing the site manually.</div>';
+                    return;
                 }
 
                 const putRes = await fetch(uploadUrl, {
@@ -401,7 +403,7 @@
             }
 
             const file = fileInput.files[0];
-            const uploadUrl = `https://api.netlify.com/api/v1/blobs?site_id=${siteId}`;
+            const uploadUrl = `https://api.netlify.com/api/v1/sites/${siteId}/blobs`;
 
             try {
                 const res = await fetch(uploadUrl, {
