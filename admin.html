@@ -162,20 +162,23 @@
             // Save token for convenience (not secure)
             localStorage.setItem('netlifyToken', apiToken);
 
-            fetch(`https://api.netlify.com/api/v1/sites/${siteId}/forms`, {
-                headers: {
-                    'Authorization': `Bearer ${apiToken}`
-                }
+            fetch('/.netlify/functions/admin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'getForms', siteId, apiToken })
             })
             .then(response => response.json())
             .then(data => {
+                if (response.status !== 200) {
+                    throw new Error('API Error: ' + JSON.stringify(data));
+                }
                 forms = data;
                 displayForms();
                 document.getElementById('formsCard').style.display = 'block';
             })
             .catch(error => {
                 console.error('Error loading forms:', error);
-                alert('Error loading forms. Check your credentials.');
+                alert('Error loading forms: ' + error.message);
             });
         }
 
@@ -196,19 +199,22 @@
         }
 
         function loadSubmissions(formId) {
-            fetch(`https://api.netlify.com/api/v1/sites/${siteId}/forms/${formId}/submissions`, {
-                headers: {
-                    'Authorization': `Bearer ${apiToken}`
-                }
+            fetch('/.netlify/functions/admin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'getSubmissions', siteId, apiToken, formId })
             })
             .then(response => response.json())
             .then(data => {
+                if (response.status !== 200) {
+                    throw new Error('API Error: ' + JSON.stringify(data));
+                }
                 displaySubmissions(data);
                 document.getElementById('submissionsCard').style.display = 'block';
             })
             .catch(error => {
                 console.error('Error loading submissions:', error);
-                alert('Error loading submissions.');
+                alert('Error loading submissions: ' + error.message);
             });
         }
 
@@ -329,59 +335,18 @@
                 heroText2: document.getElementById('heroText2').value
             };
 
-            const body = JSON.stringify(content, null, 2);
-
             try {
-                // attempt direct file update endpoint (unofficial but often works)
-                const directRes = await fetch(`https://api.netlify.com/api/v1/sites/${siteId}/files/site-content.json`, {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `Bearer ${apiToken}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body
-                });
-
-                if (directRes.ok) {
-                    document.getElementById('saveStatus').innerHTML = '<div class="alert alert-success">site-content.json updated on Netlify. Refresh your site.</div>';
-                    return;
-                }
-
-                // fallback to deploy API with forced update
-                const hashBuffer = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(body + Date.now()));
-                const hash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-
-                const deployRes = await fetch(`https://api.netlify.com/api/v1/sites/${siteId}/deploys`, {
+                const response = await fetch('/.netlify/functions/admin', {
                     method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${apiToken}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ files: { 'site-content.json': hash } })
-                });
-
-                if (!deployRes.ok) {
-                    throw new Error('Deploy creation failed: ' + await deployRes.text());
-                }
-
-                const deployJson = await deployRes.json();
-                const uploadUrl = deployJson.files && deployJson.files['site-content.json'];
-                if (!uploadUrl) {
-                    document.getElementById('saveStatus').innerHTML = '<div class="alert alert-warning">No upload needed (file unchanged) or create <code>site-content.json</code> in your repo first. Try refreshing the site manually.</div>';
-                    return;
-                }
-
-                const putRes = await fetch(uploadUrl, {
-                    method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body
+                    body: JSON.stringify({ action: 'updateContent', siteId, apiToken, content })
                 });
-
-                if (!putRes.ok) {
-                    throw new Error('Upload of site-content.json failed: ' + await putRes.text());
+                const data = await response.json();
+                if (response.status === 200 && data.success) {
+                    document.getElementById('saveStatus').innerHTML = '<div class="alert alert-success">Content updated successfully via ' + data.method + '. Refresh your site.</div>';
+                } else {
+                    document.getElementById('saveStatus').innerHTML = '<div class="alert alert-danger">Error: ' + (data.error || 'Unknown error') + '</div>';
                 }
-
-                document.getElementById('saveStatus').innerHTML = '<div class="alert alert-success">site-content.json deployed via Netlify deploy API. It may take a moment to go live.</div>';
             } catch (error) {
                 console.error(error);
                 document.getElementById('saveStatus').innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
@@ -403,30 +368,28 @@
             }
 
             const file = fileInput.files[0];
-            const uploadUrl = `https://api.netlify.com/api/v1/sites/${siteId}/blobs`;
-
-            try {
-                const res = await fetch(uploadUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${apiToken}`,
-                        'Content-Type': file.type
-                    },
-                    body: file
-                });
-
-                if (!res.ok) {
-                    throw new Error('Image upload failed: ' + (await res.text()));
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const base64 = e.target.result.split(',')[1]; // Remove data:image/...;base64,
+                try {
+                    const response = await fetch('/.netlify/functions/admin', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'uploadImage', siteId, apiToken, file: base64, type: file.type })
+                    });
+                    const data = await response.json();
+                    if (response.status === 200 && data.url) {
+                        document.getElementById('uploadStatus').innerHTML = '<div class="alert alert-success">Upload successful.</div>';
+                        document.getElementById('uploadedBlobUrl').innerHTML = `<p>Blob URL: <a href="${data.url}" target="_blank" rel="noopener">${data.url}</a></p>`;
+                    } else {
+                        document.getElementById('uploadStatus').innerHTML = '<div class="alert alert-danger">Error: ' + (data.error || 'Unknown error') + '</div>';
+                    }
+                } catch (err) {
+                    console.error(err);
+                    document.getElementById('uploadStatus').innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
                 }
-
-                const blobData = await res.json();
-                const url = blobData.url;
-                document.getElementById('uploadStatus').innerHTML = '<div class="alert alert-success">Upload successful.</div>';
-                document.getElementById('uploadedBlobUrl').innerHTML = `<p>Blob URL: <a href="${url}" target="_blank" rel="noopener">${url}</a></p>`;
-            } catch (err) {
-                console.error(err);
-                document.getElementById('uploadStatus').innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
-            }
+            };
+            reader.readAsDataURL(file);
         }
 
         // Load saved content on page load
