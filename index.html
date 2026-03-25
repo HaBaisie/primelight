@@ -144,12 +144,12 @@
 
         <div class="welcome position-relative" data-aos="fade-down" data-aos-delay="100" 
               style="text-align: center; max-width: 800px; margin: 0 auto;">
-            <h2>WELCOME TO Primelight Health Services</h2>
-            <p style="text-align: justify; text-align-last: center; padding: 0 20px;">
+            <h2 id="heroTitle">WELCOME TO Primelight Health Services</h2>
+            <p id="heroText1" style="text-align: justify; text-align-last: center; padding: 0 20px;">
               Your journey to better health starts here. Whether you’re looking for physical, occupational, or speech therapy,
               we’re here to help you achieve your goals. Contact us today to schedule your appointment!
             </p>
-            <p style="text-align: justify; text-align-last: center; padding: 0 20px; color: lightskyblue;">
+            <p id="heroText2" style="text-align: justify; text-align-last: center; padding: 0 20px; color: lightskyblue;">
               Say goodbye to painful joints that limits your day to day activities!
             </p>
         </div><!-- End Welcome -->
@@ -1175,6 +1175,41 @@
   <script src="assets/vendor/glightbox/js/glightbox.min.js"></script>
   <script src="assets/vendor/purecounter/purecounter_vanilla.js"></script>
   <script src="assets/vendor/swiper/swiper-bundle.min.js"></script>
+
+  <script>
+    async function loadDynamicContent() {
+      const defaults = {
+        heroTitle: 'WELCOME TO Primelight Health Services',
+        heroText1: 'Your journey to better health starts here. Whether you’re looking for physical, occupational, or speech therapy, we’re here to help you achieve your goals. Contact us today to schedule your appointment!',
+        heroText2: 'Say goodbye to painful joints that limits your day to day activities!'
+      };
+
+      try {
+        const res = await fetch('/site-content.json?cachebust=' + Date.now(), { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          applyDynamicContent(Object.assign({}, defaults, data));
+          return;
+        }
+      } catch (error) {
+        console.warn('Could not load site-content.json, using defaults', error);
+      }
+
+      applyDynamicContent(defaults);
+    }
+
+    function applyDynamicContent(content) {
+      const titleEl = document.getElementById('heroTitle');
+      const text1El = document.getElementById('heroText1');
+      const text2El = document.getElementById('heroText2');
+
+      if (titleEl) titleEl.textContent = content.heroTitle;
+      if (text1El) text1El.textContent = content.heroText1;
+      if (text2El) text2El.textContent = content.heroText2;
+    }
+
+    document.addEventListener('DOMContentLoaded', loadDynamicContent);
+  </script>
 
   <!-- Main JS File -->
   <script src="assets/js/main.js"></script>

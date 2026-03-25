@@ -85,7 +85,7 @@
                 <h5>Edit Site Content</h5>
             </div>
             <div class="card-body">
-                <p><strong>Note:</strong> Changes here are for demonstration only. To make permanent changes, edit the HTML files directly.</p>
+                <p><strong>Note:</strong> Edit text here and then choose <em>Save to Netlify</em> to publish via a deploy call.</p>
                 <div class="mb-3">
                     <label for="welcomeText" class="form-label">Welcome Text</label>
                     <textarea class="form-control" id="welcomeText" rows="4">Your journey to better health starts here. Whether you're looking for physical, occupational, or speech therapy, we're here to help you achieve your goals. Contact us today to schedule your appointment!
@@ -93,7 +93,24 @@
 Say goodbye to painful joints that limits your day to day activities!</textarea>
                 </div>
                 <button class="btn btn-secondary" onclick="saveContent()">Save Content (Local)</button>
+                <button class="btn btn-success ms-2" onclick="saveContentToNetlify()">Save to Netlify (Deploy)</button>
                 <div id="saveStatus" class="mt-2"></div>
+            </div>
+        </div>
+
+        <!-- Image Upload -->
+        <div class="card form-card">
+            <div class="card-header">
+                <h5>Upload Image to Netlify Blob Storage</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="imageFile" class="form-label">Choose Image</label>
+                    <input type="file" class="form-control" id="imageFile" accept="image/*">
+                </div>
+                <button class="btn btn-primary" onclick="uploadImage()">Upload Image</button>
+                <div id="uploadStatus" class="mt-2"></div>
+                <div id="uploadedBlobUrl" class="mt-2"></div>
             </div>
         </div>
         </div>
@@ -215,6 +232,125 @@ Say goodbye to painful joints that limits your day to day activities!</textarea>
             setTimeout(() => {
                 document.getElementById('saveStatus').innerHTML = '';
             }, 3000);
+        }
+
+        async function saveContentToNetlify() {
+            siteId = document.getElementById('siteId').value.trim();
+            apiToken = document.getElementById('apiToken').value.trim();
+            if (!siteId || !apiToken) {
+                alert('Site ID and API Token are required to deploy to Netlify.');
+                return;
+            }
+
+            const content = {
+                heroTitle: document.getElementById('heroTitle') ? document.getElementById('heroTitle').value : 'WELCOME TO Primelight Health Services',
+                heroText1: document.getElementById('welcomeText').value,
+                heroText2: ''
+            };
+
+            const body = JSON.stringify(content, null, 2);
+
+            try {
+                // attempt direct file update endpoint (unofficial but often works)
+                const directRes = await fetch(`https://api.netlify.com/api/v1/sites/${siteId}/files/site-content.json`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${apiToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body
+                });
+
+                if (directRes.ok) {
+                    document.getElementById('saveStatus').innerHTML = '<div class="alert alert-success">site-content.json updated on Netlify. Refresh your site.</div>';
+                    return;
+                }
+
+                // fallback to deploy API
+                const hashBuffer = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(body));
+                const hash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+                const deployRes = await fetch(`https://api.netlify.com/api/v1/sites/${siteId}/deploys`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ files: { 'site-content.json': hash } })
+                });
+
+                if (!deployRes.ok) {
+                    throw new Error('Deploy creation failed: ' + await deployRes.text());
+                }
+
+                const deployJson = await deployRes.json();
+                if (!deployJson.required || !deployJson.required.includes('site-content.json')) {
+                    document.getElementById('saveStatus').innerHTML = '<div class="alert alert-warning">Deploy created but no upload needed. Try refreshing the site.</div>';
+                    return;
+                }
+
+                // Upload required file(s)
+                const uploadUrl = deployJson.files && deployJson.files['site-content.json'];
+                if (!uploadUrl) {
+                    throw new Error('Upload URL not provided in deploy response.');
+                }
+
+                const putRes = await fetch(uploadUrl, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body
+                });
+
+                if (!putRes.ok) {
+                    throw new Error('Upload of site-content.json failed: ' + await putRes.text());
+                }
+
+                document.getElementById('saveStatus').innerHTML = '<div class="alert alert-success">site-content.json deployed via Netlify deploy API. It may take a moment to go live.</div>';
+            } catch (error) {
+                console.error(error);
+                document.getElementById('saveStatus').innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+            }
+        }
+
+        async function uploadImage() {
+            siteId = document.getElementById('siteId').value.trim();
+            apiToken = document.getElementById('apiToken').value.trim();
+            if (!siteId || !apiToken) {
+                alert('Site ID and API Token are required to upload images.');
+                return;
+            }
+
+            const fileInput = document.getElementById('imageFile');
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alert('Select an image first.');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const uploadUrl = `https://api.netlify.com/api/v1/blob`; // Netlify Blob API
+
+            try {
+                const res = await fetch(uploadUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiToken}`,
+                        'Content-Type': file.type
+                    },
+                    body: file
+                });
+
+                if (!res.ok) {
+                    throw new Error('Image upload failed: ' + (await res.text()));
+                }
+
+                const blobData = await res.json();
+                const url = blobData.url || blobData.file_url || blobData.path;
+                document.getElementById('uploadStatus').innerHTML = '<div class="alert alert-success">Upload successful.</div>';
+                document.getElementById('uploadedBlobUrl').innerHTML = `<p>Blob URL: <a href="${url}" target="_blank" rel="noopener">${url}</a></p>`;
+            } catch (err) {
+                console.error(err);
+                document.getElementById('uploadStatus').innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+            }
         }
 
         // Load saved content on page load
