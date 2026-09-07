@@ -167,11 +167,14 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'getForms', siteId, apiToken })
             })
-            .then(response => response.json())
-            .then(data => {
-                if (response.status !== 200) {
+            .then(async response => {
+                const data = await response.json();
+                if (!response.ok) {
                     throw new Error('API Error: ' + JSON.stringify(data));
                 }
+                return data;
+            })
+            .then(data => {
                 forms = data;
                 displayForms();
                 document.getElementById('formsCard').style.display = 'block';
@@ -204,11 +207,14 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'getSubmissions', siteId, apiToken, formId })
             })
-            .then(response => response.json())
-            .then(data => {
-                if (response.status !== 200) {
+            .then(async response => {
+                const data = await response.json();
+                if (!response.ok) {
                     throw new Error('API Error: ' + JSON.stringify(data));
                 }
+                return data;
+            })
+            .then(data => {
                 displaySubmissions(data);
                 document.getElementById('submissionsCard').style.display = 'block';
             })
